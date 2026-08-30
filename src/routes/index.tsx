@@ -42,6 +42,11 @@ function Dashboard() {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>("messages");
   const [saved, setSaved] = useState("");
+  const [whBusy, setWhBusy] = useState(false);
+  const [whStatus, setWhStatus] = useState("");
+  const [whError, setWhError] = useState("");
+
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
   const [form, setForm] = useState({
     owner_username: "officialmarco22",
