@@ -102,6 +102,23 @@ function Dashboard() {
     }
   }
 
+  async function onConnect(e: React.FormEvent) {
+    e.preventDefault();
+    setWhBusy(true);
+    setWhStatus("");
+    setWhError("");
+    try {
+      const res = await connectWebhook({ data: { password, base_url: baseUrl } });
+      setWhStatus(
+        `Connected ✅ — webhook: ${res.webhook_url} | bot @${res.bot_username}`,
+      );
+    } catch (err) {
+      setWhError(err instanceof Error ? err.message : "Connect fail");
+    } finally {
+      setWhBusy(false);
+    }
+  }
+
   if (!data) {
     return (
       <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-5 py-16">
