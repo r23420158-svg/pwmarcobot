@@ -14,7 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bot_settings: {
+        Row: {
+          id: number
+          images_enabled: boolean
+          knowledge: string
+          owner_username: string
+          persona: string
+          updated_at: string
+          voice_enabled: boolean
+        }
+        Insert: {
+          id?: number
+          images_enabled?: boolean
+          knowledge?: string
+          owner_username?: string
+          persona?: string
+          updated_at?: string
+          voice_enabled?: boolean
+        }
+        Update: {
+          id?: number
+          images_enabled?: boolean
+          knowledge?: string
+          owner_username?: string
+          persona?: string
+          updated_at?: string
+          voice_enabled?: boolean
+        }
+        Relationships: []
+      }
+      moderation_reports: {
+        Row: {
+          action: string
+          chat_id: number
+          chat_title: string | null
+          created_at: string
+          id: number
+          message_text: string | null
+          reason: string | null
+          user_id: number | null
+          username: string | null
+        }
+        Insert: {
+          action?: string
+          chat_id: number
+          chat_title?: string | null
+          created_at?: string
+          id?: number
+          message_text?: string | null
+          reason?: string | null
+          user_id?: number | null
+          username?: string | null
+        }
+        Update: {
+          action?: string
+          chat_id?: number
+          chat_title?: string | null
+          created_at?: string
+          id?: number
+          message_text?: string | null
+          reason?: string | null
+          user_id?: number | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      telegram_messages: {
+        Row: {
+          chat_id: number
+          chat_title: string | null
+          created_at: string
+          first_name: string | null
+          id: number
+          kind: string
+          raw: Json | null
+          role: string
+          text: string | null
+          update_id: number | null
+          user_id: number | null
+          username: string | null
+        }
+        Insert: {
+          chat_id: number
+          chat_title?: string | null
+          created_at?: string
+          first_name?: string | null
+          id?: number
+          kind?: string
+          raw?: Json | null
+          role?: string
+          text?: string | null
+          update_id?: number | null
+          user_id?: number | null
+          username?: string | null
+        }
+        Update: {
+          chat_id?: number
+          chat_title?: string | null
+          created_at?: string
+          first_name?: string | null
+          id?: number
+          kind?: string
+          raw?: Json | null
+          role?: string
+          text?: string | null
+          update_id?: number | null
+          user_id?: number | null
+          username?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
