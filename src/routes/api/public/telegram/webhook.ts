@@ -177,6 +177,11 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
         }
 
         return Response.json({ ok: true });
+        } catch (err) {
+          // Always 200 so Telegram doesn't retry-storm this update.
+          console.error("Telegram webhook error:", err);
+          return Response.json({ ok: true, error: String(err) });
+        }
       },
     },
   },
