@@ -101,6 +101,27 @@ export async function sendVoice(chatId: number, ogg: Uint8Array, replyTo?: numbe
   return tgForm("sendVoice", form);
 }
 
+export async function setWebhook(url: string, secret: string) {
+  return tg("setWebhook", {
+    url,
+    secret_token: secret,
+    allowed_updates: ["message", "edited_message", "channel_post"],
+  });
+}
+
+export async function deleteWebhook() {
+  return tg("deleteWebhook", { drop_pending_updates: false });
+}
+
+export async function getWebhookInfo() {
+  return tg<{
+    url: string;
+    has_pending_updates: boolean;
+    last_error_date?: number | null;
+    last_error_message?: string | null;
+  }>("getWebhookInfo", {});
+}
+
 let cachedMe: { id: number; username: string } | null = null;
 export async function getMe() {
   if (cachedMe) return cachedMe;
