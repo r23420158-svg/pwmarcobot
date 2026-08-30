@@ -42,6 +42,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
           return new Response("Unauthorized", { status: 401 });
         }
 
+        try {
         const update = (await request.json()) as any;
         const message = update?.message ?? update?.edited_message;
         const chatId: number | undefined = message?.chat?.id;
