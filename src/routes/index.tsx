@@ -34,6 +34,7 @@ type Tab = (typeof TABS)[number];
 function Dashboard() {
   const load = useServerFn(loadDashboard);
   const save = useServerFn(saveSettings);
+  const connectWebhook = useServerFn(setupWebhook);
 
   const [password, setPassword] = useState("");
   const [data, setData] = useState<Data | null>(null);
