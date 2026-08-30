@@ -365,7 +365,8 @@ function Dashboard() {
             >
               {busy ? "Saving…" : "Save settings"}
             </button>
-          </form>
+            </form>
+          </div>
         )}
       </section>
     </main>
