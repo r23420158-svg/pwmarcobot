@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 
-import { loadDashboard, saveSettings } from "@/lib/dashboard.functions";
+import { loadDashboard, saveSettings, setupWebhook } from "@/lib/dashboard.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,6 +34,7 @@ type Tab = (typeof TABS)[number];
 function Dashboard() {
   const load = useServerFn(loadDashboard);
   const save = useServerFn(saveSettings);
+  const connectWebhook = useServerFn(setupWebhook);
 
   const [password, setPassword] = useState("");
   const [data, setData] = useState<Data | null>(null);
@@ -41,6 +42,11 @@ function Dashboard() {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>("messages");
   const [saved, setSaved] = useState("");
+  const [whBusy, setWhBusy] = useState(false);
+  const [whStatus, setWhStatus] = useState("");
+  const [whError, setWhError] = useState("");
+
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
   const [form, setForm] = useState({
     owner_username: "officialmarco22",
@@ -93,6 +99,23 @@ function Dashboard() {
       setSaved(err instanceof Error ? err.message : "Save fail");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onConnect(e: React.FormEvent) {
+    e.preventDefault();
+    setWhBusy(true);
+    setWhStatus("");
+    setWhError("");
+    try {
+      const res = await connectWebhook({ data: { password, base_url: baseUrl } });
+      setWhStatus(
+        `Connected ✅ — webhook: ${res.webhook_url} | bot @${res.bot_username}`,
+      );
+    } catch (err) {
+      setWhError(err instanceof Error ? err.message : "Connect fail");
+    } finally {
+      setWhBusy(false);
     }
   }
 
@@ -257,7 +280,35 @@ function Dashboard() {
         )}
 
         {tab === "settings" && (
-          <form onSubmit={onSave} className="space-y-4 rounded-xl border border-border bg-card p-5">
+          <div className="space-y-4">
+            <form
+              onSubmit={onConnect}
+              className="space-y-3 rounded-xl border border-border bg-card p-5"
+            >
+              <div>
+                <label className="text-sm font-medium text-card-foreground">
+                  Bot connection (webhook)
+                </label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Publish karne ke baad yeh button Telegram ko batayega ki updates yahan bhejo.
+                  URL:{" "}
+                  <code className="break-all text-foreground">
+                    {baseUrl}/api/public/telegram/webhook
+                  </code>
+                </p>
+              </div>
+              {whStatus && <p className="text-sm text-primary">{whStatus}</p>}
+              {whError && <p className="text-sm text-destructive">{whError}</p>}
+              <button
+                type="submit"
+                disabled={whBusy}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {whBusy ? "Connecting…" : "Connect bot to Telegram"}
+              </button>
+            </form>
+
+            <form onSubmit={onSave} className="space-y-4 rounded-xl border border-border bg-card p-5">
             <div>
               <label className="text-sm font-medium text-card-foreground">Owner username</label>
               <input
@@ -314,7 +365,8 @@ function Dashboard() {
             >
               {busy ? "Saving…" : "Save settings"}
             </button>
-          </form>
+            </form>
+          </div>
         )}
       </section>
     </main>

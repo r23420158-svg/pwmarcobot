@@ -62,3 +62,31 @@ export const saveSettings = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+const WebhookInput = z.object({ password: z.string(), base_url: z.string() });
+
+export const setupWebhook = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => WebhookInput.parse(input))
+  .handler(async ({ data }) => {
+    checkPassword(data.password);
+    const base = data.base_url.replace(/\/+$/, "");
+    if (!base.startsWith("https://") || !base.includes("lovable.app")) {
+      throw new Error("Webhook sirf published Lovable URL pe set ho sakta hai. Pehle publish karo.");
+    }
+    const { telegramWebhookSecret, setWebhook, getWebhookInfo, getMe } = await import(
+      "@/lib/telegram.server"
+    );
+    const secret = telegramWebhookSecret();
+    const url = `${base}/api/public/telegram/webhook`;
+    await setWebhook(url, secret);
+    const info = await getWebhookInfo();
+    const me = await getMe();
+    return {
+      ok: true,
+      url,
+      bot_username: me.username,
+      webhook_url: info.url,
+      has_pending_updates: info.has_pending_updates,
+      last_error_message: info.last_error_message ?? null,
+    };
+  });
