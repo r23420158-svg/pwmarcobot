@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 
-import { loadDashboard, saveSettings } from "@/lib/dashboard.functions";
+import { loadDashboard, saveSettings, setupWebhook } from "@/lib/dashboard.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
