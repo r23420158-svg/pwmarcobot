@@ -280,7 +280,35 @@ function Dashboard() {
         )}
 
         {tab === "settings" && (
-          <form onSubmit={onSave} className="space-y-4 rounded-xl border border-border bg-card p-5">
+          <div className="space-y-4">
+            <form
+              onSubmit={onConnect}
+              className="space-y-3 rounded-xl border border-border bg-card p-5"
+            >
+              <div>
+                <label className="text-sm font-medium text-card-foreground">
+                  Bot connection (webhook)
+                </label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Publish karne ke baad yeh button Telegram ko batayega ki updates yahan bhejo.
+                  URL:{" "}
+                  <code className="break-all text-foreground">
+                    {baseUrl}/api/public/telegram/webhook
+                  </code>
+                </p>
+              </div>
+              {whStatus && <p className="text-sm text-primary">{whStatus}</p>}
+              {whError && <p className="text-sm text-destructive">{whError}</p>}
+              <button
+                type="submit"
+                disabled={whBusy}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {whBusy ? "Connecting…" : "Connect bot to Telegram"}
+              </button>
+            </form>
+
+            <form onSubmit={onSave} className="space-y-4 rounded-xl border border-border bg-card p-5">
             <div>
               <label className="text-sm font-medium text-card-foreground">Owner username</label>
               <input
