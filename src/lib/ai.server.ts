@@ -130,7 +130,7 @@ export async function generateVoice(
     try {
       const res = await gateway("/audio/speech", {
         model,
-        voice: opts?.voice ?? "onyx",
+        voice: model.includes("gpt-4o") ? (opts?.voice ?? "onyx") : "onyx",
         input: text.slice(0, 3500),
         response_format: "opus",
         ...(opts?.instructions && model.includes("gpt-4o")
