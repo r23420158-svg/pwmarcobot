@@ -129,3 +129,30 @@ export async function getMe() {
   cachedMe = { id: me.id, username: me.username };
   return cachedMe;
 }
+
+export async function banChatMember(chatId: number, userId: number) {
+  return tg("banChatMember", { chat_id: chatId, user_id: userId });
+}
+
+export async function unbanChatMember(chatId: number, userId: number) {
+  return tg("unbanChatMember", { chat_id: chatId, user_id: userId, only_if_banned: true });
+}
+
+/** Kick = ban + immediate unban, taaki user dobara join kar sake. */
+export async function kickChatMember(chatId: number, userId: number) {
+  await banChatMember(chatId, userId);
+  try {
+    await unbanChatMember(chatId, userId);
+  } catch (error) {
+    console.error("unban after kick failed", error);
+  }
+}
+
+export async function muteChatMember(chatId: number, userId: number, seconds: number) {
+  return tg("restrictChatMember", {
+    chat_id: chatId,
+    user_id: userId,
+    until_date: Math.floor(Date.now() / 1000) + seconds,
+    permissions: { can_send_messages: false },
+  });
+}

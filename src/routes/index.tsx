@@ -2,7 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 
-import { loadDashboard, saveSettings, setupWebhook } from "@/lib/dashboard.functions";
+import {
+  addRelation,
+  deleteRelation,
+  loadDashboard,
+  saveSettings,
+  setupWebhook,
+} from "@/lib/dashboard.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -28,13 +34,15 @@ export const Route = createFileRoute("/")({
 
 type Data = Awaited<ReturnType<typeof loadDashboard>>;
 
-const TABS = ["messages", "moderation", "settings"] as const;
+const TABS = ["messages", "moderation", "relations", "settings"] as const;
 type Tab = (typeof TABS)[number];
 
 function Dashboard() {
   const load = useServerFn(loadDashboard);
   const save = useServerFn(saveSettings);
   const connectWebhook = useServerFn(setupWebhook);
+  const addRel = useServerFn(addRelation);
+  const delRel = useServerFn(deleteRelation);
 
   const [password, setPassword] = useState("");
   const [data, setData] = useState<Data | null>(null);
@@ -45,6 +53,9 @@ function Dashboard() {
   const [whBusy, setWhBusy] = useState(false);
   const [whStatus, setWhStatus] = useState("");
   const [whError, setWhError] = useState("");
+
+  const [rel, setRel] = useState({ username: "", relation: "", note: "" });
+  const [relMsg, setRelMsg] = useState("");
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -116,6 +127,28 @@ function Dashboard() {
       setWhError(err instanceof Error ? err.message : "Connect fail");
     } finally {
       setWhBusy(false);
+    }
+  }
+
+  async function onAddRelation(e: React.FormEvent) {
+    e.preventDefault();
+    setRelMsg("");
+    try {
+      await addRel({ data: { password, ...rel } });
+      setRel({ username: "", relation: "", note: "" });
+      setRelMsg("Relation save ho gaya ✅");
+      await refresh();
+    } catch (err) {
+      setRelMsg(err instanceof Error ? err.message : "Save fail");
+    }
+  }
+
+  async function onDeleteRelation(id: number) {
+    try {
+      await delRel({ data: { password, id } });
+      await refresh();
+    } catch (err) {
+      setRelMsg(err instanceof Error ? err.message : "Delete fail");
     }
   }
 
@@ -276,6 +309,78 @@ function Dashboard() {
                 )}
               </article>
             ))}
+          </div>
+        )}
+
+        {tab === "relations" && (
+          <div className="space-y-4">
+            <form
+              onSubmit={onAddRelation}
+              className="space-y-3 rounded-xl border border-border bg-card p-5"
+            >
+              <div>
+                <label className="text-sm font-medium text-card-foreground">Add relation</label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Yahan se ya group me hi bolo — "@abc aaj se tumhara uncle hai" — bot yaad rakhega
+                  aur usi rishte se baat karega.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <input
+                  value={rel.username}
+                  onChange={(e) => setRel({ ...rel, username: e.target.value })}
+                  placeholder="@username"
+                  className="rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                />
+                <input
+                  value={rel.relation}
+                  onChange={(e) => setRel({ ...rel, relation: e.target.value })}
+                  placeholder="uncle / bhai / didi"
+                  className="rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                />
+                <input
+                  value={rel.note}
+                  onChange={(e) => setRel({ ...rel, note: e.target.value })}
+                  placeholder="note (optional)"
+                  className="rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              {relMsg && <p className="text-sm text-muted-foreground">{relMsg}</p>}
+              <button
+                type="submit"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+              >
+                Save relation
+              </button>
+            </form>
+
+            {data.relations.length === 0 ? (
+              <p className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+                Abhi koi relation save nahi hai.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {data.relations.map((r) => (
+                  <article
+                    key={r.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-3"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        @{r.username} — <span className="text-primary">{r.relation}</span>
+                      </p>
+                      {r.note && <p className="text-xs text-muted-foreground">{r.note}</p>}
+                    </div>
+                    <button
+                      onClick={() => onDeleteRelation(r.id)}
+                      className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-destructive hover:bg-accent"
+                    >
+                      Remove
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -80,6 +80,72 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_actions: {
+        Row: {
+          action: string
+          chat_id: number
+          created_at: string
+          id: number
+          reason: string | null
+          status: string
+          target_user_id: number | null
+          target_username: string | null
+        }
+        Insert: {
+          action: string
+          chat_id: number
+          created_at?: string
+          id?: number
+          reason?: string | null
+          status?: string
+          target_user_id?: number | null
+          target_username?: string | null
+        }
+        Update: {
+          action?: string
+          chat_id?: number
+          created_at?: string
+          id?: number
+          reason?: string | null
+          status?: string
+          target_user_id?: number | null
+          target_username?: string | null
+        }
+        Relationships: []
+      }
+      song_requests: {
+        Row: {
+          autotune: boolean | null
+          chat_id: number
+          created_at: string
+          id: number
+          song: string | null
+          stage: string
+          user_id: number | null
+          username: string | null
+        }
+        Insert: {
+          autotune?: boolean | null
+          chat_id: number
+          created_at?: string
+          id?: number
+          song?: string | null
+          stage?: string
+          user_id?: number | null
+          username?: string | null
+        }
+        Update: {
+          autotune?: boolean | null
+          chat_id?: number
+          created_at?: string
+          id?: number
+          song?: string | null
+          stage?: string
+          user_id?: number | null
+          username?: string | null
+        }
+        Relationships: []
+      }
       telegram_messages: {
         Row: {
           chat_id: number
@@ -120,6 +186,63 @@ export type Database = {
           role?: string
           text?: string | null
           update_id?: number | null
+          user_id?: number | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      user_relations: {
+        Row: {
+          chat_id: number | null
+          created_at: string
+          id: number
+          note: string | null
+          relation: string
+          username: string
+        }
+        Insert: {
+          chat_id?: number | null
+          created_at?: string
+          id?: number
+          note?: string | null
+          relation: string
+          username: string
+        }
+        Update: {
+          chat_id?: number | null
+          created_at?: string
+          id?: number
+          note?: string | null
+          relation?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      user_warnings: {
+        Row: {
+          chat_id: number
+          count: number
+          id: number
+          last_reason: string | null
+          updated_at: string
+          user_id: number | null
+          username: string | null
+        }
+        Insert: {
+          chat_id: number
+          count?: number
+          id?: number
+          last_reason?: string | null
+          updated_at?: string
+          user_id?: number | null
+          username?: string | null
+        }
+        Update: {
+          chat_id?: number
+          count?: number
+          id?: number
+          last_reason?: string | null
+          updated_at?: string
           user_id?: number | null
           username?: string | null
         }
