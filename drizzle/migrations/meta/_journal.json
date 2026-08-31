@@ -8,6 +8,13 @@
       "when": 1788110850581,
       "tag": "0000_telegram_bot_core",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788141179259,
+      "tag": "0001_bot_relations_warnings_pending",
+      "breakpoints": true
     }
   ]
 }
