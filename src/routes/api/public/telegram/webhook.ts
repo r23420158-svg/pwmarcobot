@@ -1,10 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
 
-import { decide, type BotSettings } from "@/lib/bot-brain.server";
-import { generateImage, generateVoice, type AiMessage } from "@/lib/ai.server";
 import {
+  decide,
+  isAbusive,
+  ownerSaysNo,
+  ownerSaysYes,
+  type BotSettings,
+  type RelationRow,
+} from "@/lib/bot-brain.server";
+import { generateImage, generateSong, generateVoice, type AiMessage } from "@/lib/ai.server";
+import {
+  banChatMember,
   getMe,
+  kickChatMember,
   sendChatAction,
   sendMessage,
   sendPhoto,
@@ -25,6 +34,22 @@ const DEFAULTS: BotSettings = {
   images_enabled: true,
   voice_enabled: true,
 };
+
+function detectAutotune(text: string): boolean | null {
+  const t = text.toLowerCase();
+  if (/(bina|without|no)\s*auto\s*-?\s*tune/.test(t) || /\bwithout\b/.test(t)) return false;
+  if (/auto\s*-?\s*tune/.test(t)) return true;
+  return null;
+}
+
+function stripSongNoise(text: string) {
+  return text
+    .replace(/@\w+/g, "")
+    .replace(/(bina|without|with|ke saath|ke sath|sath)?\s*auto\s*-?\s*tune( ke)?( sath| saath)?/gi, "")
+    .replace(/\b(gaana|gana|song|sing|gaa|gao|gaao|sunao|suna|please|plz)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 export const Route = createFileRoute("/api/public/telegram/webhook")({
   server: {
@@ -55,6 +80,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
 
           const text: string = message.text ?? message.caption ?? "";
           const username: string | null = message.from?.username ?? null;
+          const fromId: number | null = message.from?.id ?? null;
           const chatTitle: string | null = message.chat?.title ?? null;
 
           await db.from("telegram_messages").upsert(
@@ -62,7 +88,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               update_id: update.update_id,
               chat_id: chatId,
               chat_title: chatTitle,
-              user_id: message.from?.id ?? null,
+              user_id: fromId,
               username,
               first_name: message.from?.first_name ?? null,
               role: "user",
@@ -73,20 +99,6 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             { onConflict: "update_id" },
           );
 
-          // Decide whether the bot should speak up.
-          const me = await getMe();
-          const isPrivate = message.chat?.type === "private";
-          const mentioned =
-            !!me.username && text.toLowerCase().includes(`@${me.username.toLowerCase()}`);
-          const repliedToBot = message.reply_to_message?.from?.id === me.id;
-          const command = /^\/(ask|marco)\b/i.test(text.trim());
-          if (!isPrivate && !mentioned && !repliedToBot && !command) {
-            return Response.json({ ok: true, silent: true });
-          }
-          if (!text.trim() && !message.photo) {
-            return Response.json({ ok: true, silent: true });
-          }
-
           const { data: settingsRow } = await db
             .from("bot_settings")
             .select("*")
@@ -95,6 +107,157 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
           const settings: BotSettings = { ...DEFAULTS, ...(settingsRow ?? {}) };
           const owner = settings.owner_username.replace(/^@/, "");
           const isOwner = (username ?? "").toLowerCase() === owner.toLowerCase();
+
+          const me = await getMe();
+          const isPrivate = message.chat?.type === "private";
+          const mentioned =
+            !!me.username && text.toLowerCase().includes(`@${me.username.toLowerCase()}`);
+          const repliedToBot = message.reply_to_message?.from?.id === me.id;
+          const command = /^\/(ask|marco|song|gana)\b/i.test(text.trim());
+          const abusive = !isOwner && isAbusive(text);
+
+          /* ---------- 1. Owner ne pending action approve/reject kiya ---------- */
+          if (isOwner && text.trim()) {
+            const { data: pending } = await db
+              .from("pending_actions")
+              .select("*")
+              .eq("chat_id", chatId)
+              .eq("status", "pending")
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (pending && Date.now() - new Date(pending.created_at).getTime() < 60 * 60 * 1000) {
+              if (ownerSaysYes(text)) {
+                const target = pending.target_username
+                  ? `@${pending.target_username}`
+                  : "ye user";
+                if (pending.action === "warn") {
+                  const { data: warnRow } = await db
+                    .from("user_warnings")
+                    .select("*")
+                    .eq("chat_id", chatId)
+                    .eq("user_id", pending.target_user_id)
+                    .maybeSingle();
+                  const count = (warnRow?.count ?? 0) + 1;
+                  await db.from("user_warnings").upsert(
+                    {
+                      chat_id: chatId,
+                      user_id: pending.target_user_id,
+                      username: pending.target_username,
+                      count,
+                      last_reason: pending.reason,
+                      updated_at: new Date().toISOString(),
+                    },
+                    { onConflict: "chat_id,user_id" },
+                  );
+                  await sendMessage(
+                    chatId,
+                    `⚠️ ${target} ye tumhari ${count} warning hai — ${pending.reason ?? "galat behaviour"}. Sudhar ja warna boss se kick ki permission le lunga.`,
+                  );
+                } else if (pending.target_user_id) {
+                  try {
+                    if (pending.action === "ban") await banChatMember(chatId, pending.target_user_id);
+                    else await kickChatMember(chatId, pending.target_user_id);
+                    await sendMessage(
+                      chatId,
+                      `✅ Boss, ${target} ko ${pending.action === "ban" ? "ban" : "kick"} kar diya.`,
+                    );
+                  } catch (error) {
+                    console.error("moderation action failed", error);
+                    await sendMessage(
+                      chatId,
+                      `Boss ${target} ko hata nahi paya — mujhe group me admin bana do (ban users permission ke saath).`,
+                    );
+                  }
+                }
+                await db
+                  .from("pending_actions")
+                  .update({ status: "approved" })
+                  .eq("id", pending.id);
+                await db.from("moderation_reports").insert({
+                  chat_id: chatId,
+                  chat_title: chatTitle,
+                  user_id: pending.target_user_id,
+                  username: pending.target_username,
+                  action: pending.action,
+                  reason: `${pending.reason ?? ""} (owner approved)`.trim(),
+                  message_text: null,
+                });
+                return Response.json({ ok: true, action: pending.action });
+              }
+              if (ownerSaysNo(text)) {
+                await db
+                  .from("pending_actions")
+                  .update({ status: "rejected" })
+                  .eq("id", pending.id);
+                await sendMessage(chatId, "Theek hai boss, chhod deta hoon 🙏");
+                return Response.json({ ok: true, action: "rejected" });
+              }
+            }
+          }
+
+          /* ---------- 2. Gaane ka pending sawaal ---------- */
+          if (text.trim() && !command) {
+            const { data: songReq } = await db
+              .from("song_requests")
+              .select("*")
+              .eq("chat_id", chatId)
+              .eq("stage", "awaiting_song")
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (
+              songReq &&
+              Date.now() - new Date(songReq.created_at).getTime() < 30 * 60 * 1000 &&
+              (!songReq.user_id || songReq.user_id === fromId)
+            ) {
+              const autotune = detectAutotune(text) ?? true;
+              const song = stripSongNoise(text) || songReq.song || "koi romantic hindi gaana";
+              await db
+                .from("song_requests")
+                .update({ stage: "done", song, autotune })
+                .eq("id", songReq.id);
+              await sendMessage(
+                chatId,
+                `Chalo boss, "${song}" ${autotune ? "autotune ke saath" : "bina autotune ke"} gaa raha hoon 🎤`,
+                message.message_id,
+              );
+              try {
+                await sendChatAction(chatId, "record_voice");
+                const { audio } = await generateSong(song, autotune, text);
+                await sendVoice(chatId, audio, message.message_id);
+              } catch (error) {
+                console.error("song failed", error);
+                await sendMessage(chatId, "Bhai gala baith gaya 😅 thodi der baad try kar.");
+              }
+              await db.from("telegram_messages").insert({
+                chat_id: chatId,
+                chat_title: chatTitle,
+                role: "assistant",
+                text: `🎤 song: ${song} (${autotune ? "autotune" : "no autotune"})`,
+                kind: "voice",
+              });
+              return Response.json({ ok: true, song: true });
+            }
+          }
+
+          /* ---------- 3. Bolna hai ya nahi ---------- */
+          if (!isPrivate && !mentioned && !repliedToBot && !command && !abusive) {
+            return Response.json({ ok: true, silent: true });
+          }
+          if (!text.trim() && !message.photo) {
+            return Response.json({ ok: true, silent: true });
+          }
+
+          const { data: relationRows } = await db
+            .from("user_relations")
+            .select("username, relation")
+            .limit(100);
+          const relations: RelationRow[] = (relationRows ?? []) as RelationRow[];
+          const isRelative = relations.some(
+            (r) => r.username.toLowerCase() === (username ?? "").toLowerCase(),
+          );
+          const beast = abusive && !isOwner && !isRelative;
 
           const { data: recent } = await db
             .from("telegram_messages")
@@ -116,11 +279,11 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             }));
 
           await sendChatAction(chatId, "typing");
-          const decision = await decide(settings, isOwner, history);
+          const decision = await decide(settings, isOwner, history, relations, beast);
 
           const replyTo = message.message_id as number | undefined;
 
-          if (decision.want_voice) {
+          if (decision.want_voice && !decision.want_song) {
             try {
               await sendChatAction(chatId, "record_voice");
               const ogg = await generateVoice(decision.reply);
@@ -141,6 +304,29 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             kind: decision.want_voice ? "voice" : "text",
           });
 
+          /* ---------- Gaana maanga: naam + autotune pucho ---------- */
+          if (decision.want_song) {
+            await db.from("song_requests").insert({
+              chat_id: chatId,
+              user_id: fromId,
+              username,
+              stage: "awaiting_song",
+              song: decision.song_query || null,
+            });
+          }
+
+          /* ---------- Relation save ---------- */
+          if (decision.save_relation) {
+            await db.from("user_relations").upsert(
+              {
+                chat_id: chatId,
+                username: decision.save_relation.username,
+                relation: decision.save_relation.relation,
+              },
+              { onConflict: "username" },
+            );
+          }
+
           if (decision.want_image && decision.image_prompt) {
             try {
               await sendChatAction(chatId, "upload_photo");
@@ -160,21 +346,30 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             await sendMessage(chatId, `@${owner} boss dekho iska lecture nahi chal raha hai 🙏`);
           }
 
-          if (decision.report && !isOwner) {
-            const verb = decision.report.action === "ban" ? "ban him" : "kick him";
-            await sendMessage(
-              chatId,
-              `@${owner} boss ${verb} — ${username ? "@" + username : (message.from?.first_name ?? "ye user")} ${decision.report.reason}`,
-            );
-            await db.from("moderation_reports").insert({
+          /* ---------- Moderation: owner se permission maango ---------- */
+          if (decision.report && !isOwner && !isRelative) {
+            const { data: warnRow } = await db
+              .from("user_warnings")
+              .select("count")
+              .eq("chat_id", chatId)
+              .eq("user_id", fromId)
+              .maybeSingle();
+            const warns = warnRow?.count ?? 0;
+            const action = warns >= 2 || decision.report.action === "ban" ? "kick" : "warn";
+            const who = username ? `@${username}` : (message.from?.first_name ?? "ye user");
+            await db.from("pending_actions").insert({
               chat_id: chatId,
-              chat_title: chatTitle,
-              user_id: message.from?.id ?? null,
-              username,
-              action: decision.report.action,
+              target_user_id: fromId,
+              target_username: username,
+              action: decision.report.action === "ban" ? "ban" : action,
               reason: decision.report.reason,
-              message_text: text,
+              status: "pending",
             });
+            const ask =
+              action === "warn"
+                ? `@${owner} boss ye ${who} bahut bol raha hai (${decision.report.reason}) — warn kar du? "haan" bolo to kar deta hoon.`
+                : `@${owner} boss ${who} ko ${warns} warning de chuka hoon phir bhi nahi maan raha (${decision.report.reason}) — /kick kar du? "haan" bolo.`;
+            await sendMessage(chatId, ask);
           }
 
           return Response.json({ ok: true });
